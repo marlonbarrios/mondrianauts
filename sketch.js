@@ -9,12 +9,12 @@ let canvasWidth;
 let canvasHeight;
 let autoGenerate = false;
 let lastGenerateTime = 0;
-let generateInterval = 5000; // 5 seconds in milliseconds
+let generateInterval = 10000; // 10 seconds in milliseconds
 let toggleButton;
 let prevImg = null;
 let transitionProgress = 0;
 let isTransitioning = false;
-let transitionDuration = 2000; // 2 seconds for transition
+let transitionDuration = 5000; // 5 seconds for transition
 let subjects = [
   "two astronauts with chrome helmets", "three space pilots with mirrored visors", 
   "group of astronauts with reflective helmets", "pair of space explorers with metallic visors",
@@ -38,10 +38,10 @@ let colorSchemes = [
   "in bold color blocks", "with primary shapes"
 ];
 let environments = [
-  "in studio setting", "on geometric stage",
-  "in modernist space", "in Bauhaus interior",
-  "in geometric studio", "on mondrian platform",
-  "in staged space", "in fashion studio"
+  "in Mondrian world studio", "in Mondrian world geometric stage",
+  "in Mondrian world space", "in Mondrian world Bauhaus interior",
+  "in Mondrian world geometric studio", "on Mondrian world platform",
+  "in Mondrian world staged space", "in Mondrian world fashion studio"
 ];
 let intervalSlider;
 let intervalLabel;
@@ -57,6 +57,7 @@ let loadingAngle = 0;
 let isFirstGeneration = true;
 let volumeSlider;
 let masterVolume = 0.8; // Increased from 0.5 to 0.8
+let isAnimatingLoader = false;  // New flag to control loader animation
 
 async function initAudio() {
   if (!audioContext) {
@@ -161,10 +162,6 @@ function setup() {
   textInput.size(min(450, windowWidth - 100));
   textInput.parent(controlsContainer);
   
-  let submitButton = createButton("submit");
-  submitButton.mousePressed(generateImage);
-  submitButton.parent(controlsContainer);
-  
   toggleButton = createButton("Start Auto Generate");
   toggleButton.mousePressed(toggleAutoGenerate);
   toggleButton.parent(controlsContainer);
@@ -175,25 +172,25 @@ function setup() {
   toggleButton.style('border-radius', '4px');
   toggleButton.style('cursor', 'pointer');
   
-  let durationLabel = createSpan('Transition Duration: ');
+  let durationLabel = createSpan('Transition: ');
   durationLabel.parent(controlsContainer);
   durationLabel.style('color', 'white');
   
-  let durationSlider = createSlider(500, 5000, 2000, 100);
+  let durationSlider = createSlider(500, 10000, 5000, 100);
   durationSlider.parent(controlsContainer);
   durationSlider.input(() => {
     transitionDuration = durationSlider.value();
   });
   
-  intervalLabel = createSpan('Generation Interval: ');
+  intervalLabel = createSpan('Interval: ');
   intervalLabel.parent(controlsContainer);
   intervalLabel.style('color', 'white');
   
-  intervalSlider = createSlider(500, 20000, 5000, 100);
+  intervalSlider = createSlider(500, 20000, 10000, 100);
   intervalSlider.parent(controlsContainer);
   intervalSlider.input(() => {
     generateInterval = intervalSlider.value();
-    intervalLabel.html(`Generation Interval: ${(generateInterval/1000).toFixed(1)}s `);
+    intervalLabel.html(`Interval: ${(generateInterval/1000).toFixed(1)}s `);
   });
   
   muteButton = createButton("🔊");
@@ -208,13 +205,13 @@ function setup() {
   });
 
   // Initialize labels
-  intervalLabel.html(`Generation Interval: ${(generateInterval/1000).toFixed(1)}s `);
+  intervalLabel.html(`Interval: ${(generateInterval/1000).toFixed(1)}s `);
 
   // Add audio setup
   setupAudio();
 
   // Add after other sliders in the controls container
-  let volumeLabel = createSpan('Sound Volume: ');
+  let volumeLabel = createSpan('Volume: ');
   volumeLabel.parent(controlsContainer);
   volumeLabel.style('color', 'white');
   volumeLabel.style('font-family', 'Helvetica, Arial, sans-serif');
@@ -232,7 +229,6 @@ function setup() {
   textInput.style('font-family', 'Helvetica, Arial, sans-serif');
   durationLabel.style('font-family', 'Helvetica, Arial, sans-serif');
   intervalLabel.style('font-family', 'Helvetica, Arial, sans-serif');
-  submitButton.style('font-family', 'Helvetica, Arial, sans-serif');
   toggleButton.style('font-family', 'Helvetica, Arial, sans-serif');
 
   // Initialize ticker position
@@ -404,91 +400,110 @@ function draw() {
       image(img, centerX, centerY, drawWidth, drawHeight);
       pop();
     }
+  } else {
+    // Draw static loader when no image and not generating
+    push();
+    fill(0, 180);
+    rect(0, 0, width, height);
+    drawLoader(false);  // Pass false for static display
+    pop();
   }
   
-  // Draw loader
+  // Draw animated loader during generation
   if (isLoading) {
     push();
     fill(0, 180);
     rect(0, 0, width, height);
-    drawLoader();
+    drawLoader(true);  // Pass true for animation
     pop();
   }
 }
 
-function drawLoader() {
+function drawLoader(animate) {
   push();
   translate(width/2, height/2);
   
-  // Make loader larger
   let loaderSize = 200;
   
-  // Background circle for loader
-  fill(0, 200);
+  // Background circle for loader with gradient
+  let gradient = drawingContext.createRadialGradient(0, 0, 0, 0, 0, loaderSize/2);
+  gradient.addColorStop(0, 'rgba(0, 0, 0, 0.9)');
+  gradient.addColorStop(1, 'rgba(40, 40, 40, 0.8)');
+  drawingContext.fillStyle = gradient;
   noStroke();
   ellipse(0, 0, loaderSize, loaderSize);
   
-  rotate(loadingAngle);
+  if (animate) {
+    rotate(loadingAngle);
+  }
   
-  // Outer ring with Mondrian colors - larger
+  // Outer ring with more vibrant Mondrian colors
   noFill();
-  strokeWeight(8); // Increased from 6
+  strokeWeight(8);
   
-  // Colored arcs - larger
-  let arcSize = loaderSize * 0.9;
+  // Vibrant Red arc
+  stroke(255, 40, 40, 230);
+  arc(0, 0, loaderSize * 0.9, loaderSize * 0.9, 0, PI/2);
   
-  // Red arc
-  stroke(255, 0, 0, 200);
-  arc(0, 0, arcSize, arcSize, 0, PI/2);
+  // Electric Blue arc
+  stroke(20, 20, 255, 230);
+  arc(0, 0, loaderSize * 0.9, loaderSize * 0.9, PI/2, PI);
   
-  // Blue arc
-  stroke(0, 0, 255, 200);
-  arc(0, 0, arcSize, arcSize, PI/2, PI);
+  // Bright Yellow arc
+  stroke(255, 255, 0, 230);
+  arc(0, 0, loaderSize * 0.9, loaderSize * 0.9, PI, 3*PI/2);
   
-  // Yellow arc
-  stroke(255, 255, 0, 200);
-  arc(0, 0, arcSize, arcSize, PI, 3*PI/2);
+  // Bright White arc with blue tint
+  stroke(220, 240, 255, 230);
+  arc(0, 0, loaderSize * 0.9, loaderSize * 0.9, 3*PI/2, TWO_PI);
   
-  // White arc
-  stroke(255, 200);
-  arc(0, 0, arcSize, arcSize, 3*PI/2, TWO_PI);
-  
-  // Spinning segments - longer
+  // Spinning segments with color gradient
   for (let i = 0; i < 8; i++) {
     let alpha = map(sin(loadingAngle + i * PI/4), -1, 1, 50, 255);
-    stroke(255, alpha);
+    let hue = map(i, 0, 8, 0, 255);
+    stroke(hue, 200, 255, alpha);
     strokeWeight(4);
     line(0, 0, 60 * cos(i * PI/4), 60 * sin(i * PI/4));
   }
   
-  // Inner geometric design - larger
+  // Inner geometric design with brighter colors
   rotate(-loadingAngle * 1.5);
   strokeWeight(5);
   
-  // Horizontal lines - longer
-  stroke(255, 0, 0);
+  // Brighter horizontal lines
+  stroke(255, 30, 30);  // Bright red
   line(-50, -15, 50, -15);
-  stroke(0, 0, 255);
+  stroke(30, 30, 255);  // Bright blue
   line(-40, 0, 40, 0);
-  stroke(255, 255, 0);
+  stroke(255, 255, 30);  // Bright yellow
   line(-45, 15, 45, 15);
   
-  loadingAngle += 0.08;
+  if (animate) {
+    loadingAngle += 0.08;
+  }
   pop();
   
-  // Loading text with better visibility
+  // Modify text based on state
   textSize(24);
   textAlign(CENTER, CENTER);
   textFont('Helvetica');
-  // Add text shadow for better visibility
+  
+  let textColor = color(255, 0, 0);
+  textColor.setAlpha(animate ? (200 + sin(frameCount * 0.1) * 55) : 200);
+  
+  // Text shadow
   fill(0);
   for(let i = -2; i <= 2; i++) {
     for(let j = -2; j <= 2; j++) {
-      text("GENERATING IMAGE...", width/2 + i, height/2 + 120 + j);
+      text(animate ? "GENERATING IMAGE..." : "", 
+           width/2 + i, height/2 + 120 + j);
     }
   }
-  fill(255, 0, 0); // Red text
-  text("GENERATING IMAGE...", width/2, height/2 + 120);
+  
+  // Main text
+  fill(textColor);
+  text(animate ? "GENERATING IMAGE..." : "", 
+       width/2, height/2 + 120);
 }
 
 async function generateImage() {
@@ -505,10 +520,10 @@ async function generateImage() {
   let environment = random(environments);
   
   let prompt = `photorealistic full body shot of ${subject} ${element} ${environment} ${style} ${colorScheme}, 
-    high end fashion photography, studio lighting, high detail, 8k, 
+    high end fashion photography in Mondrian world, studio lighting, high detail, 8k, 
     fully closed helmets, perfect mirror reflection, polished chrome surface, metallic shine, 
     sealed space helmets, reflective visors, no exposed faces, full length photo, 
-    showing entire suits, standing pose, fashion editorial style`;
+    showing entire suits, standing pose, fashion editorial style in Mondrian style world`;
     
   textInput.value(prompt);
   tickerText = prompt; // Update ticker text
