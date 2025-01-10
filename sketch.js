@@ -130,7 +130,7 @@ function setup() {
   canvasContainer.style('left', '0');
   canvasContainer.style('width', '100%');
   canvasContainer.style('height', '100%');
-  canvasContainer.style('background-color', '#1a1a1a');
+  canvasContainer.style('background-color', '#C0C0C0');  // Silver gray
   
   let cnv = createCanvas(canvasWidth, canvasHeight);
   cnv.parent(canvasContainer);
@@ -162,7 +162,7 @@ function setup() {
   textInput.size(min(450, windowWidth - 100));
   textInput.parent(controlsContainer);
   
-  toggleButton = createButton("Start Auto Generate");
+  toggleButton = createButton("start stream of protective suits and helmets");
   toggleButton.mousePressed(toggleAutoGenerate);
   toggleButton.parent(controlsContainer);
   toggleButton.style('background-color', '#4CAF50');
@@ -243,7 +243,7 @@ function setup() {
 }
 
 function draw() {
-  background(0);
+  background(192, 192, 192);  // Same as #C0C0C0 in RGB
   
   // Check for auto-generate first
   if (autoGenerate && millis() - lastGenerateTime >= generateInterval) {
@@ -403,18 +403,18 @@ function draw() {
   } else {
     // Draw static loader when no image and not generating
     push();
-    fill(0, 180);
+    fill(192, 192, 192);  // Match the silver background
     rect(0, 0, width, height);
-    drawLoader(false);  // Pass false for static display
+    drawLoader(false);
     pop();
   }
   
   // Draw animated loader during generation
   if (isLoading) {
     push();
-    fill(0, 180);
+    fill(192, 192, 192);  // Match the silver background
     rect(0, 0, width, height);
-    drawLoader(true);  // Pass true for animation
+    drawLoader(true);
     pop();
   }
 }
@@ -495,14 +495,14 @@ function drawLoader(animate) {
   fill(0);
   for(let i = -2; i <= 2; i++) {
     for(let j = -2; j <= 2; j++) {
-      text(animate ? "GENERATING IMAGE..." : "", 
+      text(animate ? "generating stream of protective suits and helmets in a mondrian world..." : "", 
            width/2 + i, height/2 + 120 + j);
     }
   }
   
   // Main text
   fill(textColor);
-  text(animate ? "GENERATING IMAGE..." : "", 
+  text(animate ? "generating stream of protective suits and helmets in a mondrian world..." : "", 
        width/2, height/2 + 120);
 }
 
@@ -579,16 +579,16 @@ function windowResized() {
 }
 
 function toggleAutoGenerate() {
-  initAudio(); // Ensure audio is initialized
+  initAudio();
   
   autoGenerate = !autoGenerate;
   if (autoGenerate) {
-    toggleButton.html("Stop Auto Generate");
+    toggleButton.html("stop stream of protective suits and helmets");
     toggleButton.style('background-color', '#f44336');
-    lastGenerateTime = millis(); // Reset the timer
-    generateImage(); // Generate first image immediately
+    lastGenerateTime = millis();
+    generateImage();
   } else {
-    toggleButton.html("Start Auto Generate");
+    toggleButton.html("start stream of protective suits and helmets");
     toggleButton.style('background-color', '#4CAF50');
   }
 }
