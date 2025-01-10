@@ -280,6 +280,11 @@ function draw() {
     let offsetY = cos(frameCount * 0.005) * 60;
     let scaleAmount = map(sin(frameCount * 0.01), -1, 1, 1.1, 1.3);
     
+    // Add horizontal flip transformation
+    translate(width/2, height/2);
+    scale(-1, 1);  // Flip horizontally
+    translate(-width/2, -height/2);
+    
     // Draw background image
     image(img, x + offsetX, y + offsetY, bgWidth, bgHeight);
     pop();
