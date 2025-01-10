@@ -58,6 +58,10 @@ let isFirstGeneration = true;
 let volumeSlider;
 let masterVolume = 0.8; // Increased from 0.5 to 0.8
 let isAnimatingLoader = false;  // New flag to control loader animation
+let backgroundOpacity = 0;
+let backgroundDelay = 2000; // 2 seconds delay
+let backgroundFadeDuration = 1000; // 1 second fade
+let staticLoadingAngle = 0;  // New variable for static loader rotation
 
 async function initAudio() {
   if (!audioContext) {
@@ -252,40 +256,12 @@ function draw() {
   }
   
   if (img) {
-    // Draw image as background first
-    push();
-    tint(255, 80);
-    let bgAspect = img.width / img.height;
-    let canvasAspect = width / height;
-    let bgWidth, bgHeight, x, y;
-    
-    if (bgAspect > canvasAspect) {
-      bgHeight = height * 1.2;
-      bgWidth = bgHeight * bgAspect;
-      x = (width - bgWidth) / 2;
-      y = 0;
-    } else {
-      bgWidth = width * 1.2;
-      bgHeight = bgWidth / bgAspect;
-      x = 0;
-      y = (height - bgHeight) / 2;
-    }
-    
-    // Background animation
-    let offsetX = sin(frameCount * 0.005) * 60;
-    let offsetY = cos(frameCount * 0.005) * 60;
-    let scaleAmount = map(sin(frameCount * 0.01), -1, 1, 1.1, 1.3);
-    
-    // Add horizontal flip transformation
-    translate(width/2, height/2);
-    scale(-1, 1);  // Flip horizontally
-    translate(-width/2, -height/2);
-    
-    // Draw background image
-    image(img, x + offsetX, y + offsetY, bgWidth, bgHeight);
-    pop();
+    // Draw center image first
+    let drawWidth = 512;
+    let drawHeight = 512;
+    let centerX = (width - drawWidth) / 2;
+    let centerY = (height - drawHeight) / 2;
 
-    // Draw center image
     if (isTransitioning && prevImg) {
       let progress = (millis() - transitionProgress) / transitionDuration;
       progress = constrain(progress, 0, 1);
@@ -295,17 +271,13 @@ function draw() {
       let centerX = (width - drawWidth) / 2;
       let centerY = (height - drawHeight) / 2;
       
-      // Draw previous image
+      // Draw previous image with no transparency
       push();
-      noTint();
-      tint(255, (1 - progress) * 255);
       image(prevImg, centerX, centerY, drawWidth, drawHeight);
       pop();
       
-      // Draw new image
+      // Draw new image with no transparency
       push();
-      noTint();
-      tint(255, progress * 255);
       image(img, centerX, centerY, drawWidth, drawHeight);
       pop();
       
@@ -390,14 +362,58 @@ function draw() {
           osc.gain.gain.setValueAtTime(0, audioContext.currentTime);
         });
       }
-      // Draw single image
-      let drawWidth = 512;
-      let drawHeight = 512;
-      let centerX = (width - drawWidth) / 2;
-      let centerY = (height - drawHeight) / 2;
+      // Draw single center image with no transparency
       push();
-      noTint();
       image(img, centerX, centerY, drawWidth, drawHeight);
+      pop();
+    }
+
+    // Calculate background opacity based on time
+    if (millis() - transitionProgress > backgroundDelay) {
+      backgroundOpacity = map(
+        millis() - transitionProgress - backgroundDelay,
+        0,
+        backgroundFadeDuration,
+        0,
+        80 // Max opacity of 80
+      );
+      backgroundOpacity = constrain(backgroundOpacity, 0, 80);
+    } else {
+      backgroundOpacity = 0;
+    }
+
+    // Draw background image with calculated opacity
+    if (backgroundOpacity > 0) {
+      push();
+      tint(255, backgroundOpacity);
+      let bgAspect = img.width / img.height;
+      let canvasAspect = width / height;
+      let bgWidth, bgHeight, x, y;
+      
+      if (bgAspect > canvasAspect) {
+        bgHeight = height * 1.2;
+        bgWidth = bgHeight * bgAspect;
+        x = (width - bgWidth) / 2;
+        y = 0;
+      } else {
+        bgWidth = width * 1.2;
+        bgHeight = bgWidth / bgAspect;
+        x = 0;
+        y = (height - bgHeight) / 2;
+      }
+      
+      // Background animation
+      let offsetX = sin(frameCount * 0.005) * 60;
+      let offsetY = cos(frameCount * 0.005) * 60;
+      let scaleAmount = map(sin(frameCount * 0.01), -1, 1, 1.1, 1.3);
+      
+      // Add horizontal flip transformation
+      translate(width/2, height/2);
+      scale(-1, 1);  // Flip horizontally
+      translate(-width/2, -height/2);
+      
+      // Draw background image
+      image(img, x + offsetX, y + offsetY, bgWidth, bgHeight);
       pop();
     }
   } else {
@@ -433,8 +449,12 @@ function drawLoader(animate) {
   noStroke();
   ellipse(0, 0, loaderSize, loaderSize);
   
+  // Use different rotation speeds for static vs animated
   if (animate) {
     rotate(loadingAngle);
+  } else {
+    rotate(staticLoadingAngle);
+    staticLoadingAngle += 0.005;  // Very slow rotation for static loader
   }
   
   // Outer ring with more vibrant Mondrian colors
