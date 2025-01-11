@@ -58,10 +58,12 @@ let isFirstGeneration = true;
 let volumeSlider;
 let masterVolume = 0.8; // Increased from 0.5 to 0.8
 let isAnimatingLoader = false;  // New flag to control loader animation
-let backgroundOpacity = 0;
-let backgroundDelay = 2000; // 2 seconds delay
-let backgroundFadeDuration = 1000; // 1 second fade
+let backgroundOpacity = 80;  // Changed from 0 to 80 for better visibility
+let backgroundDelay = 0;     // Changed from 2000 to 0 to show immediately
+let backgroundFadeDuration = 2000;  // Changed from 1000 to 2000 for slower fade
 let staticLoadingAngle = 0;  // New variable for static loader rotation
+let isGenerating = false;  // New flag to track generation state
+let backgroundHoldDuration = 3000;  // Increased from 2000 to 3000
 
 async function initAudio() {
   if (!audioContext) {
@@ -247,195 +249,231 @@ function setup() {
 }
 
 function draw() {
-  background(192, 192, 192);  // Same as #C0C0C0 in RGB
+  background(192, 192, 192);
   
-  // Check for auto-generate first
+  // Draw Mondrian swarm background first if no image or during first load
+  if (!img || (isFirstGeneration && isLoading)) {
+    push();
+    fill(192, 192, 192, 150);
+    rect(0, 0, width, height);
+    drawLoader(isLoading);  // Animate if loading, static if not
+    pop();
+    return;  // Don't draw anything else during initial load
+  }
+  
+  // Rest of the drawing code for images
   if (autoGenerate && millis() - lastGenerateTime >= generateInterval) {
     generateImage();
     lastGenerateTime = millis();
   }
   
   if (img) {
-    // Draw center image first
-    let drawWidth = 512;
-    let drawHeight = 512;
-    let centerX = (width - drawWidth) / 2;
-    let centerY = (height - drawHeight) / 2;
-
-    if (isTransitioning && prevImg) {
-      let progress = (millis() - transitionProgress) / transitionDuration;
-      progress = constrain(progress, 0, 1);
-      
-      let drawWidth = 512;
-      let drawHeight = 512;
-      let centerX = (width - drawWidth) / 2;
-      let centerY = (height - drawHeight) / 2;
-      
-      // Draw previous image with no transparency
-      push();
-      image(prevImg, centerX, centerY, drawWidth, drawHeight);
-      pop();
-      
-      // Draw new image with no transparency
-      push();
-      image(img, centerX, centerY, drawWidth, drawHeight);
-      pop();
-      
-      // Sound control - only during transitions
-      if (audioContext && !isMuted) {
-        let baseFreq = map(progress, 0, 1, 40, 3000); // Wider frequency range
-        
-        // More complex frequency relationships
-        oscillators[0].oscillator.frequency.setValueAtTime(
-          baseFreq + sin(progress * TWO_PI * 50) * 1200 + cos(progress * TWO_PI * 30) * 800,
-          audioContext.currentTime
-        );
-        oscillators[1].oscillator.frequency.setValueAtTime(
-          baseFreq * 2.5 + cos(progress * TWO_PI * 45) * 1500 + sin(progress * TWO_PI * 25) * 1000,
-          audioContext.currentTime
-        );
-        oscillators[2].oscillator.frequency.setValueAtTime(
-          baseFreq * 1.5 + sin(progress * TWO_PI * 55) * 900 + cos(progress * TWO_PI * 35) * 700,
-          audioContext.currentTime
-        );
-        oscillators[3].oscillator.frequency.setValueAtTime(
-          baseFreq * 3.5 + cos(progress * TWO_PI * 60) * 2000 + sin(progress * TWO_PI * 40) * 1200,
-          audioContext.currentTime
-        );
-        
-        // More dramatic filter modulation
-        let filterFreq = map(
-          sin(progress * TWO_PI * 25) * cos(progress * TWO_PI * 20) * sin(progress * TWO_PI * 15),
-          -1, 1, 200, 20000
-        );
-        filterNode.frequency.setValueAtTime(filterFreq, audioContext.currentTime);
-        
-        // More extreme Q modulation
-        filterNode.Q.setValueAtTime(
-          map(sin(progress * TWO_PI * 30), -1, 1, 15, 35),
-          audioContext.currentTime
-        );
-        
-        // More complex volume envelope that ensures silence at start and end
-        let currentVolume = map(
-          sin(progress * PI) * // This creates a bell curve
-          (1 - abs(progress - 0.5) * 2) * // This ensures it fades in and out
-          cos(progress * TWO_PI * 15),
-          -1, 1, 0, 0.8
-        ) * masterVolume;
-        
-        // More complex staccato patterns
-        oscillators.forEach((osc, i) => {
-          let vol = currentVolume * 0.4 * 
-            (sin(progress * TWO_PI * (40 + i * 15)) > 0.2 ? 1 : 0) *
-            (cos(progress * TWO_PI * (30 + i * 10)) > 0 ? 1 : 0.5);
-          osc.gain.gain.setValueAtTime(vol, audioContext.currentTime);
-        });
-        
-        // More complex tremolo with increased volume
-        gainNode.gain.setValueAtTime(
-          currentVolume * (1 + sin(progress * TWO_PI * 50) * 0.9) * (1 + cos(progress * TWO_PI * 40) * 0.7),
-          audioContext.currentTime
-        );
-        
-        // Ensure complete silence at end of transition
-        if (progress >= 0.99) {
-          gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-          oscillators.forEach(osc => {
-            osc.gain.gain.setValueAtTime(0, audioContext.currentTime);
-          });
-        }
-      }
-      
-      if (progress >= 1) {
-        isTransitioning = false;
-        prevImg = null;
-        if (gainNode) {
-          gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-        }
-      }
-    } else {
-      // Ensure silence when not transitioning
-      if (gainNode) {
-        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-        oscillators.forEach(osc => {
-          osc.gain.gain.setValueAtTime(0, audioContext.currentTime);
-        });
-      }
-      // Draw single center image with no transparency
-      push();
-      image(img, centerX, centerY, drawWidth, drawHeight);
-      pop();
-    }
-
-    // Calculate background opacity based on time
-    if (millis() - transitionProgress > backgroundDelay) {
-      backgroundOpacity = map(
-        millis() - transitionProgress - backgroundDelay,
-        0,
-        backgroundFadeDuration,
-        0,
-        80 // Max opacity of 80
-      );
-      backgroundOpacity = constrain(backgroundOpacity, 0, 80);
-    } else {
-      backgroundOpacity = 0;
-    }
-
-    // Draw background image with calculated opacity
-    if (backgroundOpacity > 0) {
-      push();
-      tint(255, backgroundOpacity);
-      let bgAspect = img.width / img.height;
-      let canvasAspect = width / height;
-      let bgWidth, bgHeight, x, y;
-      
-      if (bgAspect > canvasAspect) {
-        bgHeight = height * 1.2;
-        bgWidth = bgHeight * bgAspect;
-        x = (width - bgWidth) / 2;
-        y = 0;
-      } else {
-        bgWidth = width * 1.2;
-        bgHeight = bgWidth / bgAspect;
-        x = 0;
-        y = (height - bgHeight) / 2;
-      }
-      
-      // Background animation
-      let offsetX = sin(frameCount * 0.005) * 60;
-      let offsetY = cos(frameCount * 0.005) * 60;
-      let scaleAmount = map(sin(frameCount * 0.01), -1, 1, 1.1, 1.3);
-      
-      // Add horizontal flip transformation
-      translate(width/2, height/2);
-      scale(-1, 1);  // Flip horizontally
-      translate(-width/2, -height/2);
-      
-      // Draw background image
-      image(img, x + offsetX, y + offsetY, bgWidth, bgHeight);
-      pop();
-    }
-  } else {
-    // Draw static loader when no image and not generating
+    // Draw background image FIRST
     push();
-    fill(192, 192, 192);  // Match the silver background
-    rect(0, 0, width, height);
-    drawLoader(false);
+    let bgAspect = img.width / img.height;
+    let canvasAspect = width / height;
+    let bgWidth, bgHeight, x, y;
+    
+    if (bgAspect > canvasAspect) {
+      bgHeight = height * 1.2;
+      bgWidth = bgHeight * bgAspect;
+      x = (width - bgWidth) / 2;
+      y = 0;
+    } else {
+      bgWidth = width * 1.2;
+      bgHeight = bgWidth / bgAspect;
+      x = 0;
+      y = (height - bgHeight) / 2;
+    }
+    
+    // Add animation to background
+    let offsetX = sin(frameCount * 0.005) * 60;
+    let offsetY = cos(frameCount * 0.005) * 60;
+    let scaleAmount = map(sin(frameCount * 0.01), -1, 1, 1.1, 1.3);
+    
+    translate(width/2, height/2);
+    scale(-scaleAmount, scaleAmount);
+    translate(-width/2, -height/2);
+    
+    if (isTransitioning && prevImg) {
+      // Calculate delayed progress for background
+      let bgProgress = (millis() - transitionProgress) / (transitionDuration + backgroundHoldDuration);
+      bgProgress = constrain(bgProgress, 0, 1);
+      
+      // Draw previous background with longer fade
+      tint(255, 80 * (1 - bgProgress));  // Increased opacity to 80
+      image(prevImg, x + offsetX, y + offsetY, bgWidth, bgHeight);
+    }
+    
+    // Draw new background
+    tint(255, 80);  // Increased opacity to 80
+    image(img, x + offsetX, y + offsetY, bgWidth, bgHeight);
     pop();
   }
-  
-  // Draw animated loader during generation
-  if (isLoading) {
+
+  // Then draw the center image
+  let drawWidth = 512;
+  let drawHeight = 512;
+  let centerX = (width - drawWidth) / 2;
+  let centerY = (height - drawHeight) / 2;
+
+  if (isTransitioning && prevImg) {
+    let progress = (millis() - transitionProgress) / transitionDuration;
+    progress = constrain(progress, 0, 1);
+    
+    // Smooth easing function for transitions
+    let easedProgress = 0.5 - cos(progress * PI) * 0.5;
+    
+    // Draw previous image with fade out
     push();
-    fill(192, 192, 192);  // Match the silver background
-    rect(0, 0, width, height);
-    drawLoader(true);
+    tint(255, (1 - easedProgress) * 255);
+    image(prevImg, centerX, centerY, drawWidth, drawHeight);
+    pop();
+    
+    // Draw new image with fade in
+    push();
+    tint(255, easedProgress * 255);  // Changed back to fade in
+    image(img, centerX, centerY, drawWidth, drawHeight);
+    pop();
+    
+    if (progress >= 1) {
+      isTransitioning = false;
+      prevImg = null;
+      if (gainNode) {
+        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+      }
+    }
+    
+    // Sound control - only during transitions
+    if (audioContext && !isMuted) {
+      let baseFreq = map(progress, 0, 1, 40, 3000);
+      
+      oscillators[0].oscillator.frequency.setValueAtTime(
+        baseFreq + sin(progress * TWO_PI * 50) * 1200 + cos(progress * TWO_PI * 30) * 800,
+        audioContext.currentTime
+      );
+      oscillators[1].oscillator.frequency.setValueAtTime(
+        baseFreq * 2.5 + cos(progress * TWO_PI * 45) * 1500 + sin(progress * TWO_PI * 25) * 1000,
+        audioContext.currentTime
+      );
+      oscillators[2].oscillator.frequency.setValueAtTime(
+        baseFreq * 1.5 + sin(progress * TWO_PI * 55) * 900 + cos(progress * TWO_PI * 35) * 700,
+        audioContext.currentTime
+      );
+      oscillators[3].oscillator.frequency.setValueAtTime(
+        baseFreq * 3.5 + cos(progress * TWO_PI * 60) * 2000 + sin(progress * TWO_PI * 40) * 1200,
+        audioContext.currentTime
+      );
+      
+      let filterFreq = map(
+        sin(progress * TWO_PI * 25) * cos(progress * TWO_PI * 20) * sin(progress * TWO_PI * 15),
+        -1, 1, 200, 20000
+      );
+      filterNode.frequency.setValueAtTime(filterFreq, audioContext.currentTime);
+      
+      filterNode.Q.setValueAtTime(
+        map(sin(progress * TWO_PI * 30), -1, 1, 15, 35),
+        audioContext.currentTime
+      );
+      
+      let currentVolume = map(
+        sin(progress * PI) * (1 - abs(progress - 0.5) * 2) * cos(progress * TWO_PI * 15),
+        -1, 1, 0, 0.8
+      ) * masterVolume;
+      
+      oscillators.forEach((osc, i) => {
+        let vol = currentVolume * 0.4 * 
+          (sin(progress * TWO_PI * (40 + i * 15)) > 0.2 ? 1 : 0) *
+          (cos(progress * TWO_PI * (30 + i * 10)) > 0 ? 1 : 0.5);
+        osc.gain.gain.setValueAtTime(vol, audioContext.currentTime);
+      });
+      
+      gainNode.gain.setValueAtTime(
+        currentVolume * (1 + sin(progress * TWO_PI * 50) * 0.9) * (1 + cos(progress * TWO_PI * 40) * 0.7),
+        audioContext.currentTime
+      );
+    }
+  } else {
+    // Draw single image
+    push();
+    tint(255);  // Full opacity when not transitioning
+    image(img, centerX, centerY, drawWidth, drawHeight);
     pop();
   }
 }
 
+function drawMondrianBackground(speed) {
+  push();
+  translate(width/2, height/2);
+  
+  // Strict Mondrian colors only
+  let colors = [
+    color(255, 0, 0),      // Red
+    color(0, 0, 255),      // Blue
+    color(255, 255, 0),    // Yellow
+    color(255),            // White
+    color(0)              // Black
+  ];
+  
+  // Create multiple layers of squares
+  let layers = 3;
+  for(let layer = 0; layer < layers; layer++) {
+    push();
+    // Each layer rotates differently
+    rotate(-staticLoadingAngle * speed * (layer - 1));
+    
+    let numSquares = 120;  // Even more squares for denser effect
+    for(let i = 0; i < numSquares; i++) {
+      push();
+      
+      // Different movement patterns for each layer
+      let angle = i * TWO_PI / numSquares + staticLoadingAngle * (layer * 0.5 + 1);
+      let radius = 350 + layer * 120 + sin(staticLoadingAngle * 0.5 + i * 0.2) * 250;
+      let x = cos(angle) * radius;
+      let y = sin(angle) * radius;
+      
+      // Complex orbital motion
+      x += sin(staticLoadingAngle * 0.3 + i * 0.1 + layer) * 300;
+      y += cos(staticLoadingAngle * 0.4 + i * 0.1 + layer) * 300;
+      
+      // Pixel-like sizes that vary by layer
+      let baseSize = width * (0.015 + layer * 0.01);
+      let size = baseSize + sin(staticLoadingAngle + i * 0.1) * baseSize;
+      
+      // Different rotation for each layer
+      let rot = angle * (layer + 1) + staticLoadingAngle * (0.5 + sin(i * 0.1) * 0.3);
+      translate(x, y);
+      rotate(rot);
+      
+      // Scale variation based on layer
+      let scaleVar = map(sin(staticLoadingAngle * 0.2 + i * 0.3 + layer), -1, 1, 0.2, 2.5);
+      scale(scaleVar);
+      
+      // Mondrian color cycling
+      let colorIndex = floor(abs(sin(staticLoadingAngle * 0.1 + i * 0.5 + layer) * colors.length)) % colors.length;
+      let c = colors[colorIndex];
+      // Add alpha based on layer and movement
+      let alpha = map(sin(staticLoadingAngle + i + layer * 2), -1, 1, 150, 255);
+      fill(red(c), green(c), blue(c), alpha);
+      
+      // Crisp strokes for Mondrian look
+      strokeWeight(2);
+      stroke(0, alpha);
+      
+      // Sharp squares for Mondrian style
+      rect(-size/2, -size/2, size, size);
+      
+      pop();
+    }
+    pop();
+  }
+  pop();
+}
+
 function drawLoader(animate) {
+  // Draw the Mondrian background first
+  drawMondrianBackground(animate ? 0.3 : 0.05);  // Faster for active loader, slower for static
+  
   push();
   translate(width/2, height/2);
   
@@ -503,76 +541,95 @@ function drawLoader(animate) {
   }
   pop();
   
-  // Modify text based on state
-  textSize(24);
+  // Larger text size
+  textSize(38);
   textAlign(CENTER, CENTER);
   textFont('Helvetica');
   
   let textColor = color(255, 0, 0);
   textColor.setAlpha(animate ? (200 + sin(frameCount * 0.1) * 55) : 200);
   
-  // Text shadow
+  // Text shadow with adjusted position for larger text
   fill(0);
   for(let i = -2; i <= 2; i++) {
     for(let j = -2; j <= 2; j++) {
-      text(animate ? "generating stream of protective suits and helmets in a mondrian world..." : "", 
-           width/2 + i, height/2 + 120 + j);
+      text(animate ? "generating mondrianauts..." : "", 
+           width/2 + i, height/2 + 140 + j);
     }
   }
   
-  // Main text
+  // Main text with adjusted position
   fill(textColor);
-  text(animate ? "generating stream of protective suits and helmets in a mondrian world..." : "", 
-       width/2, height/2 + 120);
+  text(animate ? "generating mondrianauts..." : "", 
+       width/2, height/2 + 140);
 }
 
 async function generateImage() {
-  console.log("Generating image...");
+  if (isGenerating) return;
+  
+  isGenerating = true;
   if (isFirstGeneration) {
     isLoading = true;  // Only show loader for first generation
   }
-  lastGenerateTime = millis();
+  console.log("Generating image...");
   
-  let subject = random(subjects);
-  let style = random(styles);
-  let element = random(elements);
-  let colorScheme = random(colorSchemes);
-  let environment = random(environments);
-  
-  let prompt = `photorealistic full body shot of ${subject} ${element} ${environment} ${style} ${colorScheme}, 
-    high end fashion photography in Mondrian world, studio lighting, high detail, 8k, 
-    fully closed helmets, perfect mirror reflection, polished chrome surface, metallic shine, 
-    sealed space helmets, reflective visors, no exposed faces, full length photo, 
-    showing entire suits, standing pose, fashion editorial style in Mondrian style world`;
-    
-  textInput.value(prompt);
-  tickerText = prompt; // Update ticker text
-  tickerX = width; // Reset ticker position
-  
-  let data = {
-    modelURL: "https://api.replicate.com/v1/models/stability-ai/stable-diffusion-3/predictions",
-    input: {
-      prompt: prompt,
-    },
-  };
-
-  let options = {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(data),
-  };
-
   try {
+    let subject = random(subjects);
+    let style = random(styles);
+    let element = random(elements);
+    let colorScheme = random(colorSchemes);
+    let environment = random(environments);
+    
+    let prompt = `photorealistic full body shot of ${subject} ${element} ${environment} ${style} ${colorScheme}, 
+      high end fashion photography in Mondrian world, studio lighting, high detail, 8k, 
+      fully closed helmets, perfect mirror reflection, polished chrome surface, metallic shine, 
+      sealed space helmets, reflective visors, no exposed faces, full length photo, 
+      showing entire suits, standing pose, fashion editorial style in Mondrian style world`;
+      
+    textInput.value(prompt);
+    tickerText = prompt; // Update ticker text
+    tickerX = width; // Reset ticker position
+    
+    let data = {
+      modelURL: "https://api.replicate.com/v1/models/stability-ai/stable-diffusion-3/predictions",
+      input: {
+        prompt: prompt,
+      },
+    };
+
+    let options = {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    };
+
     let response = await fetch(proxyUrl, options);
-    console.log("Response received, loading image...");
+    if (!response.ok) throw new Error('Network response was not ok');
+    
     let json = await response.json();
-    loadImage(json.output[0], gotImage);
+    if (!json.output || !json.output[0]) throw new Error('Invalid response format');
+    
+    loadImage(json.output[0], 
+      // Success callback
+      (loadedImg) => {
+        gotImage(loadedImg);
+        isGenerating = false;
+      },
+      // Error callback
+      () => {
+        console.error("Failed to load image");
+        isGenerating = false;
+        isLoading = false;
+        lastGenerateTime = millis();
+      }
+    );
   } catch (error) {
     console.error("Error generating image:", error);
-    lastGenerateTime = millis() - generateInterval + 1000;
-    isLoading = false;  // Stop loading only on error
+    isGenerating = false;
+    isLoading = false;
+    lastGenerateTime = millis();
   }
 }
 
@@ -583,9 +640,10 @@ function gotImage(results) {
     transitionProgress = millis();
   }
   img = results;
+  isLoading = false;  // Clear loading state when image is received
+  isGenerating = false;
   if (isFirstGeneration) {
-    isLoading = false;
-    isFirstGeneration = false;  // Turn off first generation flag
+    isFirstGeneration = false;
   }
   console.log("Image loaded.");
 }
