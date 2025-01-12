@@ -1,7 +1,7 @@
 // Introduction to Machine Learning for the Arts, Fall 2024
 // https://github.com/ml5js/Intro-ML-Arts-IMA-F24
 
-let proxyUrl = "https://crawling-hazel-vertebra.glitch.me/create_n_get/";
+let proxyUrl = "https://replicate-api-proxy.glitch.me/create_n_get/"";
 let textInput;
 let img;
 let canvasContainer;
